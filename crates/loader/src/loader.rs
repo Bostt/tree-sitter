@@ -9,6 +9,7 @@ use std::{
     collections::HashMap,
     env, fs,
     io::{BufRead, BufReader, Write as _},
+    marker::PhantomData,
     mem,
     path::{Path, PathBuf},
     process::Command,
@@ -16,7 +17,6 @@ use std::{
     time::SystemTime,
 };
 
-#[cfg(any(feature = "tree-sitter-highlight", feature = "tree-sitter-tags"))]
 use anyhow::Error;
 use anyhow::{anyhow, Context, Result};
 use etcetera::BaseStrategy as _;
@@ -222,7 +222,7 @@ pub struct Links {
     pub homepage: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Bindings {
     pub c: bool,
@@ -236,6 +236,61 @@ pub struct Bindings {
     pub rust: bool,
     pub swift: bool,
     pub zig: bool,
+}
+
+impl Bindings {
+    /// return available languages and its default enabled state.
+    #[must_use]
+    pub const fn languages(&self) -> [(&'static str, bool); 7] {
+        [
+            ("c", true),
+            ("go", true),
+            // Comment out Java and Kotlin until the bindings are actually available.
+            // ("java", false),
+            // ("kotlin", false),
+            ("node", true),
+            ("python", true),
+            ("rust", true),
+            ("swift", true),
+            ("zig", false),
+        ]
+    }
+
+    /// construct Bindings from a language list. If a language isn't supported, its name will be put on the error part.
+    pub fn with_enabled_languages<'a, I>(languages: I) -> Result<Self, &'a str>
+    where
+        I: Iterator<Item = &'a str>,
+    {
+        let mut out = Self {
+            c: false,
+            go: false,
+            java: false,
+            kotlin: false,
+            node: false,
+            python: false,
+            rust: false,
+            swift: false,
+            zig: false,
+        };
+
+        for v in languages {
+            match v {
+                "c" => out.c = true,
+                "go" => out.go = true,
+                // Comment out Java and Kotlin until the bindings are actually available.
+                // "java" => out.java = true,
+                // "kotlin" => out.kotlin = true,
+                "node" => out.node = true,
+                "python" => out.python = true,
+                "rust" => out.rust = true,
+                "swift" => out.swift = true,
+                "zig" => out.zig = true,
+                unsupported => return Err(unsupported),
+            }
+        }
+
+        Ok(out)
+    }
 }
 
 impl Default for Bindings {
@@ -323,6 +378,7 @@ pub struct LanguageConfiguration<'a> {
     highlight_names: &'a Mutex<Vec<String>>,
     #[cfg(feature = "tree-sitter-highlight")]
     use_all_highlight_names: bool,
+    _phantom: PhantomData<&'a ()>,
 }
 
 pub struct Loader {
@@ -1231,6 +1287,7 @@ impl Loader {
                     highlight_names: &self.highlight_names,
                     #[cfg(feature = "tree-sitter-highlight")]
                     use_all_highlight_names: self.use_all_highlight_names,
+                    _phantom: PhantomData,
                 };
 
                 for file_type in &configuration.file_types {
@@ -1300,6 +1357,7 @@ impl Loader {
                 highlight_names: &self.highlight_names,
                 #[cfg(feature = "tree-sitter-highlight")]
                 use_all_highlight_names: self.use_all_highlight_names,
+                _phantom: PhantomData,
             };
             self.language_configurations.push(unsafe {
                 mem::transmute::<LanguageConfiguration<'_>, LanguageConfiguration<'static>>(

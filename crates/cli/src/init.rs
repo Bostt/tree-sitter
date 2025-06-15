@@ -139,6 +139,7 @@ pub struct JsonConfigOpts {
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<Url>,
+    pub bindings: Bindings,
 }
 
 impl JsonConfigOpts {
@@ -185,7 +186,7 @@ impl JsonConfigOpts {
                 }),
                 namespace: None,
             },
-            bindings: Bindings::default(),
+            bindings: self.bindings,
         }
     }
 }
@@ -206,6 +207,7 @@ impl Default for JsonConfigOpts {
             author: String::new(),
             email: None,
             url: None,
+            bindings: Bindings::default(),
         }
     }
 }
@@ -679,10 +681,13 @@ pub fn generate_grammar_files(
                 |path| generate_file(path, PACKAGE_SWIFT_TEMPLATE, language_name, &generate_opts),
                 |path| {
                     let mut contents = fs::read_to_string(path)?;
-                    contents = contents.replace(
-                        "https://github.com/ChimeHQ/SwiftTreeSitter",
-                        "https://github.com/tree-sitter/swift-tree-sitter",
-                    );
+                    contents = contents
+                        .replace(
+                            "https://github.com/ChimeHQ/SwiftTreeSitter",
+                            "https://github.com/tree-sitter/swift-tree-sitter",
+                        )
+                        .replace("version: \"0.8.0\")", "version: \"0.9.0\")")
+                        .replace("(url:", "(name: \"SwiftTreeSitter\", url:");
                     write_file(path, contents)?;
                     Ok(())
                 },
